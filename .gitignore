@@ -1,0 +1,21 @@
+# Node
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specifics
+bioenso-vision/yolov8n.pt
+bioenso-vision/yolov8s.pt

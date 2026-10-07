@@ -1,0 +1,6 @@
+opencv-python==4.9.0.80
+python-dotenv==1.0.1
+numpy==1.26.4
+ultralytics
+flask
+flask-cors
