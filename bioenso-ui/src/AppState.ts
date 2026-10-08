@@ -28,7 +28,7 @@ export interface AppState {
   };
 }
 
-export function getScenarioState(scenario: ScenarioType, riskOverride?: number): AppState {
+export function getScenarioState(scenario: ScenarioType, riskOverride?: number, liveBiology?: any): AppState {
   // Base configuration
   const base = {
     scenario,
@@ -53,14 +53,17 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number):
     }
   };
 
+  let baseState: AppState = base;
+
   switch (scenario) {
     case "NORMAL":
-      return {
+      baseState = {
         ...base,
         animalState: { ...base.animalState, normal: 122, elevated: 6, critical: 0 },
       };
+      break;
     case "HEAT_RISK":
-      return {
+      baseState = {
         ...base,
         environment: { temperature: 34.2, humidity: 62, rainfall: 0, tempDiff: 2.1 },
         animalState: { 
@@ -71,8 +74,9 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number):
         },
         riskState: { score: 62, level: "WATCH", message: "Heat conditions are high.", primaryAction: "Ensure drinking water" }
       };
+      break;
     case "CRITICAL_HEAT":
-      return {
+      baseState = {
         ...base,
         environment: { temperature: 36.4, humidity: 71, rainfall: 0, tempDiff: 4.3 },
         animalState: { 
@@ -83,8 +87,9 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number):
         },
         riskState: { score: 86, level: "ACT NOW", message: "Your livestock are experiencing high thermal stress.", primaryAction: "Start cooling" }
       };
+      break;
     case "FLOOD_RISK":
-      return {
+      baseState = {
         ...base,
         environment: { temperature: 26.5, humidity: 95, rainfall: 42, tempDiff: -5.6 },
         animalState: { 
@@ -107,7 +112,7 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number):
       const currentElevated = Math.round(69 - (progress * 50));
       const currentNormal = 128 - currentCritical - currentElevated;
 
-      return {
+      baseState = {
         ...base,
         environment: { temperature: 33.5, humidity: 65, rainfall: 0, tempDiff: 1.4 },
         animalState: { 
@@ -126,12 +131,51 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number):
           primaryAction: "" 
         }
       };
+      break;
     case "OFFLINE":
-      return {
+      baseState = {
         ...base,
         riskState: { score: 45, level: "OFFLINE", message: "Local protection active.", primaryAction: "" }
       };
+      break;
     default:
-      return base;
+      baseState = base;
   }
+
+  // --- HACKATHON LIVE OVERRIDE ---
+  // If we receive real-time data from the Python Vision API, inject it into the app state!
+  if (liveBiology && liveBiology.status === "ACTIVE") {
+      const active = liveBiology.active_animals;
+      baseState.animalState.total = active > 0 ? active : 128; // fallback to 128 if no cows on screen
+      
+      // Calculate diffs from baseline
+      baseState.animalState.shadeOccupancyDiff = liveBiology.shade_pct - 15; // Assuming 15% is normal
+      baseState.animalState.waterDemandDiff = liveBiology.water_pct - 10; // Assuming 10% is normal
+      baseState.animalState.movementDiff = Math.round((liveBiology.movement_index * 100) - 50); // Map index to diff
+      baseState.animalState.grazingDiff = liveBiology.grazing_pct - 75;
+      
+      // Dynamically calculate risk score based on live stress signals (Shade + Low Movement)
+      let liveRisk = 24; // Base normal risk
+      if (liveBiology.shade_pct > 60) liveRisk += 25;
+      if (liveBiology.movement_index < 0.2) liveRisk += 20; // Lethargy
+      if (liveBiology.water_pct > 40) liveRisk += 20;
+      
+      baseState.riskState.score = liveRisk > 100 ? 100 : liveRisk;
+      
+      if (baseState.riskState.score > 70) {
+          baseState.riskState.level = "CRITICAL RISK";
+          baseState.riskState.message = "LIVE: Herd is showing severe signs of heat stress!";
+          baseState.riskState.primaryAction = "Deploy Sprinklers Now";
+          baseState.animalState.critical = Math.floor(baseState.animalState.total * 0.4);
+      } else if (baseState.riskState.score > 40) {
+          baseState.riskState.level = "ELEVATED RISK";
+          baseState.riskState.message = "LIVE: Animals are clustering in shade.";
+          baseState.animalState.elevated = Math.floor(baseState.animalState.total * 0.3);
+      } else {
+          baseState.riskState.level = "SAFE TODAY";
+          baseState.riskState.message = "LIVE: Herd behavior is normal.";
+      }
+  }
+
+  return baseState;
 }

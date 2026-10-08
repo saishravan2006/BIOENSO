@@ -3,6 +3,7 @@ from flask_cors import CORS
 import threading
 import datetime
 import logging
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -10,6 +11,63 @@ CORS(app)
 # Suppress flask logging to keep terminal clean
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+
+LATEST_FRAME = None
+LATEST_FRAME_BIO = None
+frame_lock = threading.Lock()
+bio_lock = threading.Lock()
+
+def update_frame(frame):
+    global LATEST_FRAME
+    with frame_lock:
+        LATEST_FRAME = frame.copy()
+
+def update_frame_bio(frame):
+    global LATEST_FRAME_BIO
+    with bio_lock:
+        LATEST_FRAME_BIO = frame.copy()
+
+def generate_mjpeg():
+    import cv2
+    while True:
+        with frame_lock:
+            frame = LATEST_FRAME.copy() if LATEST_FRAME is not None else None
+            
+        if frame is None:
+            time.sleep(0.1)
+            continue
+            
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.05)
+
+def generate_mjpeg_bio():
+    import cv2
+    while True:
+        with bio_lock:
+            frame = LATEST_FRAME_BIO.copy() if LATEST_FRAME_BIO is not None else None
+            
+        if frame is None:
+            time.sleep(0.1)
+            continue
+            
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.05)
+
+@app.route("/api/v1/video_feed")
+def video_feed():
+    from flask import Response
+    return Response(generate_mjpeg(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route("/api/v1/video_feed_bio")
+def video_feed_bio():
+    from flask import Response
+    return Response(generate_mjpeg_bio(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # Global store for the latest observation
 LATEST_OBSERVATION = {
@@ -28,7 +86,7 @@ LATEST_OBSERVATION = {
         "confidence": 0.0,
         "source": "INFERRED \u00b7 VISION" # unicode dot
     },
-    "status": "INITIALIZING"
+    "status": "ACTIVE"
 }
 
 @app.route("/api/v1/observations/biology", methods=["GET"])

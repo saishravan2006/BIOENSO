@@ -17,6 +17,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const [activeAction, setActiveAction] = useState(false);
   const [recoveryRisk, setRecoveryRisk] = useState<number | null>(null);
+  const [liveBiology, setLiveBiology] = useState<any>(null);
+
+  // Poll Vision API
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/observations/biology');
+        if (res.ok) {
+          const data = await res.json();
+          setLiveBiology(data.biology);
+        }
+      } catch (err) {
+        // Handle gracefully if vision script is offline
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Recovery transition logic
   useEffect(() => {
@@ -48,7 +65,7 @@ export default function App() {
     }
   }, [scenario, recoveryRisk]);
 
-  const appState = getScenarioState(scenario, recoveryRisk ?? undefined);
+  const appState = getScenarioState(scenario, recoveryRisk ?? undefined, liveBiology);
 
   const getThemeClasses = () => {
     if (appState.riskState.level === "ACT NOW" && scenario === "CRITICAL_HEAT") return "from-rose-500 to-red-900";

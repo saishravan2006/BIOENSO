@@ -8,11 +8,12 @@ class CentroidTracker:
         self.max_disappeared = max_disappeared
         self.max_distance = max_distance
 
-    def register(self, center, box, conf):
+    def register(self, center, box, conf, class_name):
         self.objects[self.next_object_id] = {
             "center": center, 
             "box": box,
             "confidence": conf,
+            "class_name": class_name,
             "disappeared": 0
         }
         self.next_object_id += 1
@@ -33,7 +34,7 @@ class CentroidTracker:
 
         if len(self.objects) == 0:
             for i in range(len(input_centers)):
-                self.register(input_centers[i], detections[i]["box"], detections[i]["confidence"])
+                self.register(input_centers[i], detections[i]["box"], detections[i]["confidence"], detections[i].get("class_name", "UNKNOWN"))
         else:
             object_ids = list(self.objects.keys())
             object_centers = [self.objects[oid]["center"] for oid in object_ids]
@@ -59,6 +60,7 @@ class CentroidTracker:
                     self.objects[oid]["center"] = input_centers[best_j]
                     self.objects[oid]["box"] = detections[best_j]["box"]
                     self.objects[oid]["confidence"] = detections[best_j]["confidence"]
+                    self.objects[oid]["class_name"] = detections[best_j].get("class_name", "UNKNOWN")
                     self.objects[oid]["disappeared"] = 0
                     used_rows.add(i)
                     used_cols.add(best_j)
@@ -73,6 +75,6 @@ class CentroidTracker:
             # Register new objects
             for j in range(len(input_centers)):
                 if j not in used_cols:
-                    self.register(input_centers[j], detections[j]["box"], detections[j]["confidence"])
+                    self.register(input_centers[j], detections[j]["box"], detections[j]["confidence"], detections[j].get("class_name", "UNKNOWN"))
 
         return self.objects

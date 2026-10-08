@@ -14,11 +14,13 @@ function ThermalCamera({ isCritical }: { isCritical: boolean }) {
 
     const startCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
+        // HACKATHON FIX: Removed getUserMedia to prevent locking the Windows Webcam
+        // which prevents Python OpenCV from using it!
+        // stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        // if (videoRef.current) {
+        //   videoRef.current.srcObject = stream;
+        //   videoRef.current.play();
+        // }
         setHasPermission(true);
       } catch (err) {
         console.error("Camera access denied:", err);
@@ -97,62 +99,15 @@ function ThermalCamera({ isCritical }: { isCritical: boolean }) {
   );
 }
 
-function AICamera() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
-        setHasPermission(true);
-      } catch (err) {
-        console.error("Camera access denied:", err);
-        setHasPermission(false);
-      }
-    };
-    startCamera();
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  if (hasPermission === false) {
-    return <div className="flex-1 flex items-center justify-center text-white/50 text-sm font-bold p-6 text-center">Camera access denied.</div>;
-  }
-
+function AICamera({ hasLiveBiology }: { hasLiveBiology: boolean }) {
+  // Always render the Live Feed
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-t-[32px] bg-black">
-      <video 
-        ref={videoRef} 
-        playsInline 
-        muted 
-        className="w-full h-full object-cover opacity-80 mix-blend-luminosity grayscale contrast-150 brightness-75"
+    <div className="relative w-full h-full overflow-hidden rounded-t-[32px] bg-black min-h-[300px]">
+      <img 
+        src="http://localhost:8000/api/v1/video_feed" 
+        className="w-full h-full object-cover"
+        alt="Live Computer Vision Feed"
       />
-      {/* Scanning Line */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="w-full h-1 bg-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,1)] animate-[ping_3s_linear_infinite] absolute top-1/2" />
-      </div>
-      
-      {/* Animated Bounding Boxes */}
-      <div className="absolute border border-emerald-400/80 bg-emerald-400/10 w-24 h-24 flex flex-col justify-end animate-bounce" style={{ left: '20%', top: '30%', animationDuration: '4s' }}>
-        <div className="bg-emerald-500 text-white text-[9px] font-black px-1 uppercase tracking-widest w-fit">Resting 94%</div>
-      </div>
-      
-      <div className="absolute border border-orange-400/80 bg-orange-400/10 w-32 h-32 flex flex-col justify-end animate-pulse" style={{ left: '60%', top: '40%', animationDuration: '2s' }}>
-        <div className="bg-orange-500 text-white text-[9px] font-black px-1 uppercase tracking-widest w-fit">Moving 82%</div>
-      </div>
-      
-      <div className="absolute border border-emerald-400/80 bg-emerald-400/10 w-16 h-16 flex flex-col justify-end" style={{ left: '10%', top: '70%' }}>
-        <div className="bg-emerald-500 text-white text-[9px] font-black px-1 uppercase tracking-widest w-fit">Feeding 88%</div>
-      </div>
     </div>
   );
 }
@@ -220,21 +175,14 @@ export default function LiveScreen({ appState }: { appState: AppState }) {
               
               <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
                 <div className="flex items-center space-x-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
-                  <div className={clsx("w-2 h-2 rounded-full", scenario === "NORMAL" ? "bg-green-500" : "bg-red-500 animate-pulse")} />
-                  <span className="text-[10px] font-black text-white/80 tracking-widest uppercase">Thermal Sensor &mdash; Simulation</span>
+                  <div className={clsx("w-2 h-2 rounded-full", "bg-green-500 animate-pulse")} />
+                  <span className="text-[10px] font-black text-white/80 tracking-widest uppercase">Thermal Vision &mdash; Live</span>
                 </div>
               </div>
               
-              {/* Live WebRTC Thermal View */}
+              {/* Live Python MJPEG Thermal Feed */}
               <div className="flex-1 flex items-center justify-center relative overflow-hidden rounded-t-[32px]">
-                <ThermalCamera isCritical={scenario === "CRITICAL_HEAT"} />
-                
-                {/* Heat Box overlay */}
-                {scenario !== "NORMAL" && (
-                  <div className="absolute border-2 border-rose-400/80 rounded-xl w-32 h-32 flex flex-col justify-end p-2 z-20" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-                    <div className="bg-rose-500/80 backdrop-blur-md px-2 py-1 rounded text-[10px] font-black text-white inline-block w-fit">Target: 41.2°C</div>
-                  </div>
-                )}
+                <AICamera hasLiveBiology={true} />
               </div>
 
               {/* Thermal Legend */}
@@ -286,13 +234,15 @@ export default function LiveScreen({ appState }: { appState: AppState }) {
       )}
       {viewMode === "biological" && (
         <div className="mt-6 px-6 space-y-6">
-          <div className="aspect-[4/3] bg-black/40 backdrop-blur-3xl rounded-[32px] border border-white/10 shadow-2xl relative flex flex-col">
-            
-            <AICamera />
-            
+          <div className="aspect-[4/3] bg-black rounded-[32px] border border-white/10 shadow-2xl relative overflow-hidden">
+            <img 
+              src="http://localhost:8000/api/v1/video_feed_bio" 
+              className="w-full h-full object-cover"
+              alt="Live Biological Vision Feed"
+            />
             <div className="absolute top-4 right-4 flex items-center space-x-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 z-20">
               <Eye size={14} className="text-white/80" />
-              <span className="text-[10px] font-black text-white tracking-widest uppercase">Computer Vision &mdash; Live</span>
+              <span className="text-[10px] font-black text-white tracking-widest uppercase">Behavioral AI &mdash; Live</span>
             </div>
           </div>
 

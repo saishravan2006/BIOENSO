@@ -10,8 +10,17 @@ class AnimalDetector:
     def __init__(self, model_name='yolov8s.pt', conf_threshold=0.35):
         self.conf_threshold = conf_threshold
         self.model = None
-        # COCO IDs: 0 (person), 15 (cat), 16 (dog), 21 (cow), 67 (cell phone), 73 (book)
-        self.target_classes = [0, 15, 16, 21, 67, 73] 
+        
+        # COCO mapping for our test classes
+        self.class_names = {
+            0: 'PERSON', 
+            15: 'CAT', 
+            16: 'DOG', 
+            21: 'COW', 
+            67: 'PHONE', 
+            73: 'BOOK'
+        }
+        self.target_classes = list(self.class_names.keys())
         
         if YOLO_AVAILABLE:
             print(f"[VISION] Loading {model_name}...")
@@ -41,6 +50,7 @@ class AnimalDetector:
                     detections.append({
                         "box": (int(x1), int(y1), int(x2), int(y2)),
                         "confidence": conf,
-                        "center": (int((x1 + x2) / 2), int((y1 + y2) / 2))
+                        "center": (int((x1 + x2) / 2), int((y1 + y2) / 2)),
+                        "class_name": self.class_names.get(cls_id, "UNKNOWN")
                     })
         return detections
