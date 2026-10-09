@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Network, Activity, Settings, LayoutDashboard, Cloud, ShieldAlert, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
+import { parseLegacyBiologyResponse, extractBehaviouralFeatures, detectBiologicalEvents, TemporalEventCorrelationLayer } from 'bioenso-shared';
+import { SimulatedEnvironmentalSource, LiveApiEnvironmentalSource, EnvironmentHistoryBuffer, extractClimateFeatures, ClimateKMeans } from 'bioenso-shared';
+import type { EnvironmentalConnectionState } from 'bioenso-shared';
 import { getNetworkState } from './AppState';
 import type { NetworkScenario } from './AppState';
 import ObservatoryHome from './components/ObservatoryHome';
@@ -18,14 +21,84 @@ function App() {
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
   const [activeFarmTab, setActiveFarmTab] = useState<FarmTab>("OVERVIEW");
   const [liveBiology, setLiveBiology] = useState<any>(null);
+    const [candidates, setCandidates] = useState<any[]>([]);
+      const [envSourceType, setEnvSourceType] = useState<"SIMULATED" | "LIVE">("SIMULATED");
+  const [_liveEnv, setLiveEnv] = useState<any>(null);
+  const [_envConnectionState, setEnvConnectionState] = useState<EnvironmentalConnectionState | null>(null);
+  const [_climateFeatures, setClimateFeatures] = useState<any>(null);
+  const envHistoryRef = useRef(new EnvironmentHistoryBuffer());
+  const climateKMeansRef = useRef(new ClimateKMeans({ k: 3, maxIterations: 50, featuresToUse: ["meanTemperature", "meanHumidity", "temperatureVariability"], version: "0.1-PROVISIONAL" }));
+  const historyRef = useRef<any[]>([]);
+    const correlationLayer = useRef(new TemporalEventCorrelationLayer());
   
+  // Poll Environmental API (same contract as bioenso-ui)
   useEffect(() => {
+    const edgeApiUrl = import.meta.env.VITE_EDGE_API_URL || 'http://localhost:8000';
+    let liveSource: LiveApiEnvironmentalSource | null = null;
+    let source: SimulatedEnvironmentalSource | LiveApiEnvironmentalSource;
+
+    if (envSourceType === "LIVE") {
+      liveSource = new LiveApiEnvironmentalSource(edgeApiUrl + '/api/v1/observations/environment');
+      source = liveSource;
+    } else {
+      source = new SimulatedEnvironmentalSource();
+      setEnvConnectionState(null);
+    }
+
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/v1/observations/biology');
+        const obs = await source.getLatest();
+        setLiveEnv(obs);
+        envHistoryRef.current.addObservation(obs);
+        if (liveSource) setEnvConnectionState(liveSource.getConnectionState());
+
+        try {
+          const features = extractClimateFeatures(envHistoryRef.current.getValidHistory(), 30);
+          setClimateFeatures(features);
+          try {
+            const histForClustering = envHistoryRef.current.getValidHistory();
+            if (histForClustering.length >= 10) {
+              const allClimateFeatures = [];
+              for (let i = 0; i < Math.min(histForClustering.length, 30); i++) {
+                allClimateFeatures.push(extractClimateFeatures(histForClustering.slice(0, i+1), 30));
+              }
+              climateKMeansRef.current.fit(allClimateFeatures);
+            }
+          } catch (e) { /* Insufficient data for clustering � do NOT invent one */ }
+        } catch (e) {
+          setClimateFeatures(null);
+        }
+      } catch (err) {
+        // Connection failed � do NOT substitute simulated data in live mode
+        if (liveSource) setEnvConnectionState(liveSource.getConnectionState());
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [envSourceType]);
+
+    useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch((import.meta.env.VITE_EDGE_API_URL || 'http://localhost:8000') + '/api/v1/observations/biology');
         if (res.ok) {
           const data = await res.json();
-          setLiveBiology(data.biology);
+          const parsed = parseLegacyBiologyResponse(data);
+            setLiveBiology(parsed);
+            
+            historyRef.current.push(parsed);
+            if (historyRef.current.length > 60) historyRef.current.shift();
+            
+            if (historyRef.current.length >= 2) {
+               const features = extractBehaviouralFeatures(historyRef.current.slice(0, Math.floor(historyRef.current.length/2)), historyRef.current.slice(Math.floor(historyRef.current.length/2)), 60);
+               const events = detectBiologicalEvents(features, parsed);
+               const cands = correlationLayer.current.processInterval(features, events, undefined, new Date().toISOString());
+               if (cands.length > 0) {
+                   setCandidates(prev => {
+                       const active = cands.filter((c: any) => c.status === "ACTIVE" || c.status === "INSUFFICIENT_EVIDENCE");
+                       return active.length > 0 ? active : prev;
+                   });
+               }
+            }
         }
       } catch (err) {
         // Ignore API errors gracefully when vision script is offline
@@ -34,7 +107,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
   
-  const farms = getNetworkState(networkScenario, liveBiology);
+  const farms = getNetworkState(networkScenario, liveBiology, candidates as any, _liveEnv, _envConnectionState, envSourceType);
   const selectedFarm = selectedFarmId ? farms.find(f => f.id === selectedFarmId) : null;
 
   return (
@@ -127,6 +200,19 @@ function App() {
               <option value="NETWORK_RECOVERY">Network Recovery</option>
               <option value="NETWORK_OFFLINE">Network Offline</option>
             </select>
+
+            <div className="flex items-center space-x-2 mt-4 mb-3 text-white/50">
+              <Activity size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Environment Source</span>
+            </div>
+            <select 
+              value={envSourceType}
+              onChange={(e) => setEnvSourceType(e.target.value as "SIMULATED" | "LIVE")}
+              className="w-full bg-black/50 border border-white/20 text-white text-xs font-bold p-2 rounded-lg outline-none"
+            >
+              <option value="SIMULATED">Simulated</option>
+              <option value="LIVE">Live (Edge API)</option>
+            </select>
           </div>
         </div>
       </div>
@@ -162,3 +248,4 @@ function App() {
 }
 
 export default App;
+

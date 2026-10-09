@@ -11,7 +11,7 @@ export default function RecoveryTab({ farm }: { farm: Farm }) {
   // Generating a trajectory based on current BTI
   const mockRecoveryData = Array.from({ length: 11 }).map((_, i) => ({
     time: `14:${30 + i * 5}`,
-    risk: isRecovery ? Math.max(bti.score, 86 - i * 5) : (i > 5 ? bti.score + i : bti.score)
+    risk: isRecovery ? Math.max((bti.score ?? 0), 86 - i * 5) : (i > 5 ? (bti.score ?? 0) + i : (bti.score ?? 0))
   }));
   
   return (
@@ -120,7 +120,7 @@ export default function RecoveryTab({ farm }: { farm: Farm }) {
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <span className="text-sm font-bold text-white/70">Risk after</span>
-              <span className={clsx("text-lg font-black", isRecovery ? "text-emerald-400" : "text-white")}>{bti.score}</span>
+              <span className={clsx("text-lg font-black", isRecovery ? "text-emerald-400" : "text-white")}>{bti.score ?? "--"}</span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <span className="text-sm font-bold text-white/70">Biological recovery</span>
@@ -158,3 +158,4 @@ function SignalRow({ label, direction }: { label: string, direction: "up" | "dow
     </div>
   );
 }
+

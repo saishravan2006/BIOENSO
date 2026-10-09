@@ -132,9 +132,9 @@ def main():
                 x1, y1, x2, y2 = obj_data["box"]
                 
                 # Skip persons from animal stats — only draw the box, don't count them
-                is_person = class_name == "PERSON"
+                is_livestock = class_name in ["COW", "SHEEP", "PIG", "HORSE", "DOG"]
                 
-                if not is_person:
+                if is_livestock:
                     active_animals += 1
                     # Determine Zone (animals only)
                     zone = zone_manager.get_zone_for_point(cx, cy, width, height)
@@ -160,7 +160,7 @@ def main():
                     behavior = "RESTING"
                     
                 # Color: red for person, orange/cyan for animals by behavior
-                if is_person:
+                if not is_livestock:
                     color = (0, 0, 220)  # Red for persons
                 else:
                     color = (0, 165, 255) if behavior == "MOVING" else (200, 200, 0)
@@ -186,9 +186,12 @@ def main():
                 cv2.putText(bio_frame, display_text, (x1 + 5, y2 - 8), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1)
         
         # Calculate percentages
-        shade_pct = int((zone_counts["SHADE"] / active_animals * 100)) if active_animals > 0 else 0
+        if not zone_manager.alignment_trusted:
+            shade_pct, water_pct, grazing_pct = None, None, None
+        else:
+            shade_pct = int((zone_counts["SHADE"] / active_animals * 100)) if active_animals > 0 else 0
         water_pct = int((zone_counts["WATER"] / active_animals * 100)) if active_animals > 0 else 0
-        grazing_pct = int((zone_counts["GRAZING"] / active_animals * 100)) if active_animals > 0 else 0
+            grazing_pct = int((zone_counts["GRAZING"] / active_animals * 100)) if active_animals > 0 else 0
         
         # Determine confidence proxy based on active tracked vs raw YOLO detected
         yolo_detected = len(detections) if 'detections' in locals() else 0

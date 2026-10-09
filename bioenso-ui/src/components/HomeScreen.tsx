@@ -48,7 +48,7 @@ export default function HomeScreen({ appState, activeAction, setActiveAction }: 
       {/* Recovery Chart & Effectiveness */}
       {isRecovery && (
         <div className="mt-8 bg-emerald-500/20 border border-emerald-400/30 backdrop-blur-2xl rounded-[32px] p-6 shadow-2xl">
-          {riskState.score <= 32 ? (
+          {riskState.score !== null && riskState.score <= 32 ? (
             <div className="animate-in fade-in zoom-in duration-500">
               <div className="flex justify-between items-start mb-6">
                 <div>
@@ -79,10 +79,10 @@ export default function HomeScreen({ appState, activeAction, setActiveAction }: 
                 <div className="w-1/4 bg-white/20 rounded-t-lg h-[86%]" />
                 <div className="w-1/4 bg-emerald-400/30 rounded-t-lg h-[69%]" />
                 <div className="w-1/4 bg-emerald-400/70 rounded-t-lg h-[57%]" />
-                <div className="w-1/4 bg-emerald-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${riskState.score}%` }} />
+                <div className="w-1/4 bg-emerald-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${riskState.score ?? 0}%` }} />
                 <div className="flex-1 flex flex-col justify-end pb-2 pl-4">
                   <span className="text-white/50 line-through font-bold text-sm">86</span>
-                  <span className="text-emerald-300 font-black text-2xl tracking-tighter">{riskState.score}</span>
+                  <span className="text-emerald-300 font-black text-2xl tracking-tighter">{riskState.score ?? "--"}</span>
                 </div>
               </div>
             </div>
@@ -96,7 +96,7 @@ export default function HomeScreen({ appState, activeAction, setActiveAction }: 
           <div className="relative inline-block">
             <div className="flex items-start">
               <span className="text-[140px] leading-none font-black text-white tracking-tighter drop-shadow-2xl">
-                {riskState.score}
+                {riskState.score ?? "--"}
               </span>
               <div className="flex flex-col mt-4 ml-2">
                 <span className="text-2xl font-black text-white/50 leading-none">/100</span>
@@ -263,7 +263,7 @@ export default function HomeScreen({ appState, activeAction, setActiveAction }: 
 
       {/* Sensor Data Pills */}
       <div className="px-6 mt-10">
-        <h2 className="text-[11px] font-black text-white/50 mb-4 tracking-[0.2em] uppercase">Simulated Environment</h2>
+        <h2 className="text-[11px] font-black text-white/50 mb-4 tracking-[0.2em] uppercase">{(appState as any).envSourceType === "LIVE" || (appState as any).envSourceType === "ESP32_SERIAL" ? "Live Environment" : (appState as any).envSourceType === "DISCONNECTED" ? "Environment (Disconnected)" : "Simulated Environment"}</h2>
         <div className="flex space-x-4 overflow-x-auto pb-4 hide-scrollbar">
           <div className="bg-white/10 backdrop-blur-xl rounded-[24px] p-5 min-w-[140px] border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.15)] flex flex-col justify-between">
             <Thermometer size={24} className="text-white/60 mb-6" />

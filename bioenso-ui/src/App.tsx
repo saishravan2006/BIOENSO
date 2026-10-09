@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { Camera, Home, List, Bell, Settings } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -8,6 +8,9 @@ import AnimalsScreen from './components/AnimalsScreen'
 import AlertsScreen from './components/AlertsScreen'
 import FarmScreen from './components/FarmScreen'
 
+import { parseLegacyBiologyResponse, extractBehaviouralFeatures, detectBiologicalEvents, TemporalEventCorrelationLayer } from 'bioenso-shared';
+import { SimulatedEnvironmentalSource, LiveApiEnvironmentalSource, EnvironmentHistoryBuffer, extractClimateFeatures, ClimateKMeans } from 'bioenso-shared';
+import type { EnvironmentalConnectionState } from 'bioenso-shared';
 import { getScenarioState } from './AppState'
 import type { ScenarioType } from './AppState'
 type TabType = "home" | "live" | "animals" | "alerts" | "farm";
@@ -18,15 +21,98 @@ export default function App() {
   const [activeAction, setActiveAction] = useState(false);
   const [recoveryRisk, setRecoveryRisk] = useState<number | null>(null);
   const [liveBiology, setLiveBiology] = useState<any>(null);
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [envSourceType, setEnvSourceType] = useState<"SIMULATED" | "LIVE">("SIMULATED");
+  const [liveEnv, setLiveEnv] = useState<any>(null);
+  // Tracks connection status separately from observation validity.
+  // null = never attempted (SIMULATED mode). Object = live mode with state.
+  const [envConnectionState, setEnvConnectionState] = useState<EnvironmentalConnectionState | null>(null);
+  const [climateFeatures, setClimateFeatures] = useState<any>(null);
+  const envHistoryRef = useRef(new EnvironmentHistoryBuffer());
+  const climateKMeansRef = useRef(new ClimateKMeans({ k: 3, maxIterations: 50, featuresToUse: ["meanTemperature", "meanHumidity", "temperatureVariability"], version: "0.1-PROVISIONAL" }));
+  const historyRef = useRef<any[]>([]);
+  const correlationLayer = useRef(new TemporalEventCorrelationLayer());
+
+  // Poll Environmental API
+  useEffect(() => {
+    const edgeApiUrl = import.meta.env.VITE_EDGE_API_URL || 'http://localhost:8000';
+    let liveSource: LiveApiEnvironmentalSource | null = null;
+    let source: SimulatedEnvironmentalSource | LiveApiEnvironmentalSource;
+
+    if (envSourceType === "LIVE") {
+      liveSource = new LiveApiEnvironmentalSource(edgeApiUrl + '/api/v1/observations/environment');
+      source = liveSource;
+    } else {
+      source = new SimulatedEnvironmentalSource();
+      // In SIMULATED mode, clear any stale live-connection state
+      setEnvConnectionState(null);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const obs = await source.getLatest();
+        setLiveEnv(obs);
+        envHistoryRef.current.addObservation(obs);
+
+        // Expose live connection state when in live mode
+        if (liveSource) {
+          setEnvConnectionState(liveSource.getConnectionState());
+        }
+
+        try {
+          const features = extractClimateFeatures(envHistoryRef.current.getValidHistory(), 30);
+          setClimateFeatures(features);
+          // Clustering is contextual info only, not a replacement for the BTI risk score
+          try {
+            const histForClustering = envHistoryRef.current.getValidHistory();
+            if (histForClustering.length >= 10) {
+              const allClimateFeatures = [];
+              for (let i = 0; i < Math.min(histForClustering.length, 30); i++) {
+                allClimateFeatures.push(extractClimateFeatures(histForClustering.slice(0, i+1), 30));
+              }
+              climateKMeansRef.current.fit(allClimateFeatures);
+            }
+          } catch (e) {
+            // Insufficient data for clustering — silently skip; do NOT invent a cluster
+          }
+        } catch (e) {
+          setClimateFeatures(null); // Insufficient history
+        }
+      } catch (err) {
+        // Connection failed — explicitly track disconnect; do NOT substitute simulated data
+        if (liveSource) {
+          setEnvConnectionState(liveSource.getConnectionState());
+        }
+        // liveEnv remains at its last valid value so UI can show "stale" rather than zero
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [envSourceType]);
 
   // Poll Vision API
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/v1/observations/biology');
+        const res = await fetch((import.meta.env.VITE_EDGE_API_URL || 'http://localhost:8000') + '/api/v1/observations/biology');
         if (res.ok) {
           const data = await res.json();
-          setLiveBiology(data.biology);
+          const parsed = parseLegacyBiologyResponse(data);
+          setLiveBiology(parsed);
+
+          historyRef.current.push(parsed);
+          if (historyRef.current.length > 60) historyRef.current.shift();
+
+          if (historyRef.current.length >= 2) {
+            const features = extractBehaviouralFeatures(historyRef.current.slice(0, Math.floor(historyRef.current.length/2)), historyRef.current.slice(Math.floor(historyRef.current.length/2)), 60);
+            const events = detectBiologicalEvents(features, parsed);
+            const cands = correlationLayer.current.processInterval(features, events, undefined, new Date().toISOString());
+            if (cands.length > 0) {
+              setCandidates(prev => {
+                const active = cands.filter((c: any) => c.status === "ACTIVE" || c.status === "INSUFFICIENT_EVIDENCE");
+                return active.length > 0 ? active : prev;
+              });
+            }
+          }
         }
       } catch (err) {
         // Handle gracefully if vision script is offline
@@ -50,30 +136,28 @@ export default function App() {
     if (scenario === "RECOVERY" && recoveryRisk !== null) {
       if (recoveryRisk > 32) {
         const timer = setTimeout(() => {
-          // Drop risk down progressively: 86 -> 78 -> 69 -> 57 -> 44 -> 32
           let nextRisk = recoveryRisk;
           if (recoveryRisk === 86) nextRisk = 78;
           else if (recoveryRisk === 78) nextRisk = 69;
           else if (recoveryRisk === 69) nextRisk = 57;
           else if (recoveryRisk === 57) nextRisk = 44;
           else if (recoveryRisk === 44) nextRisk = 32;
-          
           setRecoveryRisk(nextRisk);
-        }, 1500); // 1.5 seconds per drop for demo
+        }, 1500);
         return () => clearTimeout(timer);
       }
     }
   }, [scenario, recoveryRisk]);
 
-  const appState = getScenarioState(scenario, recoveryRisk ?? undefined, liveBiology);
+  const appState = getScenarioState(scenario, recoveryRisk ?? undefined, liveBiology, candidates, liveEnv, climateFeatures, envSourceType, envConnectionState);
 
   const getThemeClasses = () => {
     if (appState.riskState.level === "ACT NOW" && scenario === "CRITICAL_HEAT") return "from-rose-500 to-red-900";
     if (appState.riskState.level === "ACT NOW" && scenario === "FLOOD_RISK") return "from-blue-600 to-slate-900";
     if (appState.riskState.level === "WATCH") return "from-amber-400 to-orange-700";
     if (scenario === "RECOVERY") {
-      if (appState.riskState.score < 40) return "from-emerald-400 to-teal-900"; // Normalized
-      return "from-emerald-600 to-blue-900"; // Recovering
+      if (appState.riskState.score !== null && appState.riskState.score < 40) return "from-emerald-400 to-teal-900";
+      return "from-emerald-600 to-blue-900";
     }
     if (scenario === "OFFLINE") return "from-slate-400 to-slate-800";
     return "from-emerald-400 to-teal-900";
@@ -82,18 +166,18 @@ export default function App() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-900 p-0 sm:p-6">
       <div className="w-full h-full sm:h-[850px] max-w-md flex flex-col overflow-hidden bg-black relative sm:rounded-[40px] sm:shadow-[0_0_0_12px_rgba(30,41,59,1),0_0_60px_rgba(0,0,0,0.5)] sm:border sm:border-slate-700">
-        
+
         {/* App Shell Background */}
         <div className={clsx("absolute inset-0 bg-gradient-to-br transition-colors duration-1000 ease-in-out", getThemeClasses())} />
         <div className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }} />
-        
+
         {/* Main Content Area */}
         <div className="relative z-10 flex-1 overflow-y-auto hide-scrollbar">
           {activeTab === "home" && <HomeScreen appState={appState} activeAction={activeAction} setActiveAction={setActiveAction} />}
           {activeTab === "live" && <LiveScreen appState={appState} />}
           {activeTab === "animals" && <AnimalsScreen appState={appState} />}
           {activeTab === "alerts" && <AlertsScreen appState={appState} />}
-          {activeTab === "farm" && <FarmScreen appState={appState} setScenario={(s: ScenarioType) => { setScenario(s); setRecoveryRisk(null); }} setActiveAction={setActiveAction} />}
+          {activeTab === "farm" && <FarmScreen appState={appState} setScenario={(s: ScenarioType) => { setScenario(s); setRecoveryRisk(null); }} setActiveAction={setActiveAction} envSourceType={envSourceType} setEnvSourceType={setEnvSourceType} />}
         </div>
 
         {/* Bottom Navigation */}
@@ -137,3 +221,4 @@ export default function App() {
     </div>
   )
 }
+

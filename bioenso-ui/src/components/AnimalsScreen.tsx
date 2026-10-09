@@ -1,4 +1,4 @@
-import { Activity, Droplets, ArrowUpRight, ArrowDownRight, Minus, AlertTriangle } from 'lucide-react';
+import { Activity, ArrowUpRight, ArrowDownRight, Minus, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import type { AppState } from '../AppState';
 
@@ -170,3 +170,4 @@ export default function AnimalsScreen({ appState }: { appState: AppState }) {
     </div>
   );
 }
+

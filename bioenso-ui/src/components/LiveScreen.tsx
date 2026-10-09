@@ -1,105 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { Map, Waves, AlertCircle, ThermometerSun, Eye } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, ThermometerSun, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import type { AppState } from '../AppState';
 
-function ThermalCamera({ isCritical }: { isCritical: boolean }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    let animationFrame: number;
-
-    const startCamera = async () => {
-      try {
-        // HACKATHON FIX: Removed getUserMedia to prevent locking the Windows Webcam
-        // which prevents Python OpenCV from using it!
-        // stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        // if (videoRef.current) {
-        //   videoRef.current.srcObject = stream;
-        //   videoRef.current.play();
-        // }
-        setHasPermission(true);
-      } catch (err) {
-        console.error("Camera access denied:", err);
-        setHasPermission(false);
-      }
-    };
-
-    startCamera();
-
-    const drawThermal = () => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (ctx) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imageData.data;
-          
-          for (let i = 0; i < data.length; i += 4) {
-            // Calculate brightness
-            const brightness = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-            
-            // Map brightness to thermal colors
-            if (brightness < 64) {
-              data[i] = 0; // R
-              data[i + 1] = 0; // G
-              data[i + 2] = brightness * 4; // B
-            } else if (brightness < 128) {
-              data[i] = 0;
-              data[i + 1] = (brightness - 64) * 4;
-              data[i + 2] = 255 - (brightness - 64) * 4;
-            } else if (brightness < 192) {
-              data[i] = (brightness - 128) * 4;
-              data[i + 1] = 255;
-              data[i + 2] = 0;
-            } else {
-              data[i] = 255;
-              data[i + 1] = 255 - (brightness - 192) * 4;
-              data[i + 2] = 0;
-            }
-
-            // If critical scenario, add a red tint to warmer areas
-            if (isCritical && brightness > 100) {
-              data[i] = Math.min(255, data[i] + 40); 
-            }
-          }
-          ctx.putImageData(imageData, 0, 0);
-        }
-      }
-      animationFrame = requestAnimationFrame(drawThermal);
-    };
-
-    drawThermal();
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      cancelAnimationFrame(animationFrame);
-    };
-  }, [isCritical]);
-
-  if (hasPermission === false) {
-    return <div className="flex-1 flex items-center justify-center text-white/50 text-sm font-bold p-6 text-center">Camera access denied. Please allow camera permissions to view the live thermal demo.</div>;
-  }
-
-  return (
-    <>
-      <video ref={videoRef} className="hidden" playsInline muted />
-      <canvas ref={canvasRef} className="w-full h-full object-cover mix-blend-screen opacity-90 blur-[1px]" />
-    </>
-  );
-}
-
-function AICamera({ hasLiveBiology }: { hasLiveBiology: boolean }) {
+function AICamera() {
   // Always render the Live Feed
   return (
     <div className="relative w-full h-full overflow-hidden rounded-t-[32px] bg-black min-h-[300px]">
@@ -182,7 +86,7 @@ export default function LiveScreen({ appState }: { appState: AppState }) {
               
               {/* Live Python MJPEG Thermal Feed */}
               <div className="flex-1 flex items-center justify-center relative overflow-hidden rounded-t-[32px]">
-                <AICamera hasLiveBiology={true} />
+                <AICamera />
               </div>
 
               {/* Thermal Legend */}
@@ -378,3 +282,5 @@ export default function LiveScreen({ appState }: { appState: AppState }) {
     </div>
   );
 }
+
+

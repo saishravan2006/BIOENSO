@@ -97,7 +97,9 @@ def main():
         
         for obj_id, obj_data in tracked_objects.items():
             if obj_data["disappeared"] == 0:
-                active_animals += 1
+                class_name = obj_data.get("class_name", "UNKNOWN")
+                if class_name in ["COW", "SHEEP", "PIG", "HORSE", "DOG"]:
+                    active_animals += 1
                 cx, cy = obj_data["center"]
                 x1, y1, x2, y2 = obj_data["box"]
                 
@@ -112,9 +114,12 @@ def main():
                 cv2.putText(display_frame, f"{class_name} {obj_id} ({zone})", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Calculate percentages
-        shade_pct = int((zone_counts["SHADE"] / active_animals * 100)) if active_animals > 0 else 0
+        if not zone_manager.alignment_trusted:
+            shade_pct, water_pct, grazing_pct = None, None, None
+        else:
+            shade_pct = int((zone_counts["SHADE"] / active_animals * 100)) if active_animals > 0 else 0
         water_pct = int((zone_counts["WATER"] / active_animals * 100)) if active_animals > 0 else 0
-        grazing_pct = int((zone_counts["GRAZING"] / active_animals * 100)) if active_animals > 0 else 0
+            grazing_pct = int((zone_counts["GRAZING"] / active_animals * 100)) if active_animals > 0 else 0
         
         # Determine confidence proxy based on active tracked vs raw YOLO detected
         yolo_detected = len(detections) if 'detections' in locals() else 0

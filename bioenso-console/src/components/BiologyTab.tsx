@@ -5,12 +5,12 @@ import { Camera, Thermometer, Map as MapIcon, Dna } from 'lucide-react';
 export default function BiologyTab({ farm }: { farm: Farm }) {
   const { currentBiology: biology, baseline } = farm;
   
-  const shadeSeekingDelta = biology.behavior.shadeSeeking - baseline.expectedBehavior.shadeSeeking;
-  const waterDemandDelta = biology.behavior.waterDemand - baseline.expectedBehavior.waterDemand;
-  const movementDelta = biology.behavior.movement - baseline.expectedBehavior.movement;
-  const grazingDelta = biology.behavior.grazing - baseline.expectedBehavior.grazing;
-  const ruminationDelta = biology.behavior.ruminating - baseline.expectedBehavior.ruminating;
-  const thermalResponseDelta = biology.behavior.thermalResponse - baseline.expectedBehavior.thermalResponse;
+  const shadeSeekingDelta = (biology.behavior.shadeSeeking ?? 0) - (baseline.expectedBehavior.shadeSeeking ?? 0);
+  const waterDemandDelta = (biology.behavior.waterDemand ?? 0) - (baseline.expectedBehavior.waterDemand ?? 0);
+  const movementDelta = (biology.behavior.movement ?? 0) - (baseline.expectedBehavior.movement ?? 0);
+  const grazingDelta = (biology.behavior.grazing ?? 0) - (baseline.expectedBehavior.grazing ?? 0);
+  const ruminationDelta = (biology.behavior.ruminating ?? 0) - (baseline.expectedBehavior.ruminating ?? 0);
+  const thermalResponseDelta = (biology.behavior.thermalResponse ?? 0) - (baseline.expectedBehavior.thermalResponse ?? 0);
   
   const isFlood = farm.hazard === "FLOOD";
   
@@ -35,23 +35,23 @@ export default function BiologyTab({ farm }: { farm: Farm }) {
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-2">
               <span className="text-sm font-bold text-white/70">Resting</span>
-              <span className="text-lg font-black">{biology.behavior.resting}</span>
+              <span className="text-lg font-black">{(biology.behavior.resting ?? 0)}</span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-2">
               <span className="text-sm font-bold text-white/70">Moving</span>
-              <span className="text-lg font-black">{biology.behavior.movement}</span>
+              <span className="text-lg font-black">{(biology.behavior.movement ?? 0)}</span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-2">
               <span className="text-sm font-bold text-white/70">Drinking</span>
-              <span className="text-lg font-black">{biology.behavior.drinking}</span>
+              <span className="text-lg font-black">{(biology.behavior.drinking ?? 0)}</span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-2">
               <span className="text-sm font-bold text-white/70">Grazing</span>
-              <span className="text-lg font-black">{biology.behavior.grazing}</span>
+              <span className="text-lg font-black">{(biology.behavior.grazing ?? 0)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-bold text-white/70">Ruminating</span>
-              <span className="text-lg font-black">{biology.behavior.ruminating}</span>
+              <span className="text-lg font-black">{(biology.behavior.ruminating ?? 0)}</span>
             </div>
           </div>
         </div>

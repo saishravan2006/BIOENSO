@@ -1,17 +1,17 @@
 import type { Farm } from '../AppState';
 import clsx from 'clsx';
 import { ArrowDown, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { BTI_WEIGHTS } from '../domain/bti/config';
+import { BTI_WEIGHTS } from 'bioenso-bti';
 
 export default function EngineTab({ farm }: { farm: Farm }) {
   const { currentEnvironment: environment, currentBiology: biology, currentClimate: climate, bti, baseline } = farm;
   
   const isCritical = bti.severity === "CRITICAL";
   
-  const shadeSeekingDelta = biology.behavior.shadeSeeking - baseline.expectedBehavior.shadeSeeking;
-  const movementDelta = biology.behavior.movement - baseline.expectedBehavior.movement;
-  const waterDemandDelta = biology.behavior.waterDemand - baseline.expectedBehavior.waterDemand;
-  const ruminationDelta = biology.behavior.ruminating - baseline.expectedBehavior.ruminating;
+  const shadeSeekingDelta = (biology.behavior.shadeSeeking ?? 0) - (baseline.expectedBehavior.shadeSeeking ?? 0);
+  const movementDelta = (biology.behavior.movement ?? 0) - (baseline.expectedBehavior.movement ?? 0);
+  const waterDemandDelta = (biology.behavior.waterDemand ?? 0) - (baseline.expectedBehavior.waterDemand ?? 0);
+  const ruminationDelta = (biology.behavior.ruminating ?? 0) - (baseline.expectedBehavior.ruminating ?? 0);
   
   return (
     <div className="animate-in fade-in duration-700 pb-20">
@@ -104,10 +104,10 @@ export default function EngineTab({ farm }: { farm: Farm }) {
             </div>
             
             <div className="space-y-4">
-              <ComparisonRow label="Movement" expected={`${baseline.expectedBehavior.movement}%`} observed={`${biology.behavior.movement}%`} diff={movementDelta} />
-              <ComparisonRow label="Shade occupancy" expected={`${baseline.expectedBehavior.shadeSeeking}%`} observed={`${biology.behavior.shadeSeeking}%`} diff={shadeSeekingDelta} />
-              <ComparisonRow label="Water demand" expected={`${baseline.expectedBehavior.waterDemand}%`} observed={`${biology.behavior.waterDemand}%`} diff={waterDemandDelta} />
-              <ComparisonRow label="Rumination" expected={`${baseline.expectedBehavior.ruminating}%`} observed={`${biology.behavior.ruminating}%`} diff={ruminationDelta} />
+              <ComparisonRow label="Movement" expected={`${(baseline.expectedBehavior.movement ?? 0)}%`} observed={`${(biology.behavior.movement ?? 0)}%`} diff={movementDelta} />
+              <ComparisonRow label="Shade occupancy" expected={`${(baseline.expectedBehavior.shadeSeeking ?? 0)}%`} observed={`${(biology.behavior.shadeSeeking ?? 0)}%`} diff={shadeSeekingDelta} />
+              <ComparisonRow label="Water demand" expected={`${(baseline.expectedBehavior.waterDemand ?? 0)}%`} observed={`${(biology.behavior.waterDemand ?? 0)}%`} diff={waterDemandDelta} />
+              <ComparisonRow label="Rumination" expected={`${(baseline.expectedBehavior.ruminating ?? 0)}%`} observed={`${(biology.behavior.ruminating ?? 0)}%`} diff={ruminationDelta} />
             </div>
           </div>
           
@@ -191,3 +191,4 @@ function ComparisonRow({ label, expected, observed, diff }: { label: string, exp
     </div>
   );
 }
+

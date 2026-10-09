@@ -2,12 +2,13 @@ import type { FarmState } from './domain/farms/farmDataset';
 import { allFarms } from './domain/farms/farmDataset';
 import { simulateScenario } from './domain/simulation/scenarioEngine';
 import type { NetworkScenario } from './domain/simulation/scenarioEngine';
-import { calculateBTI } from './domain/bti/engine';
-import type { BTIResult } from './domain/bti/types';
+import { calculateBTI, adaptBiologicalObservation } from 'bioenso-bti';
+import type { BTIResult } from 'bioenso-bti';
 
 // The new unified Farm type that the UI expects
 export interface Farm extends FarmState {
   bti: BTIResult;
+  candidates?: any[];
 }
 
 export type { NetworkScenario };
@@ -19,7 +20,16 @@ const mockHistoryScores = (baseScore: number, trend: "RISING" | "FALLING" | "STA
   return [baseScore - 1, baseScore + 1, baseScore];
 };
 
-export const getNetworkState = (scenario: NetworkScenario, liveBiology?: any): Farm[] => {
+import type { EnvironmentalConnectionState } from 'bioenso-shared';
+
+export const getNetworkState = (
+  scenario: NetworkScenario, 
+  liveBiology?: any, 
+  candidates?: any[],
+  liveEnv?: any,
+  envConnectionState?: EnvironmentalConnectionState | null,
+  envSourceType?: "SIMULATED" | "LIVE"
+): Farm[] => {
   // 1. Get raw simulated states
   const rawStates = simulateScenario(allFarms, scenario);
 
@@ -41,36 +51,58 @@ export const getNetworkState = (scenario: NetworkScenario, liveBiology?: any): F
       hazard: state.hazard,
     });
     
-    const history = mockHistoryScores(dummyBti.score, expectedTrend);
+    const history = mockHistoryScores(dummyBti.score ?? 0, expectedTrend);
     
-    // Inject live biology if available for DEMO_FARM_01
+    // Inject live biology and environment if available for FARM_01
     let currentBiology = state.currentBiology;
-    if (liveBiology && state.id === "DEMO_FARM_01") {
-      currentBiology = {
-        ...currentBiology,
-        activityLevel: liveBiology.movement_index,
-        shadeSeeking: liveBiology.shade_occupancy_pct / 100,
-        waterDemand: liveBiology.water_zone_occupancy_pct / 100,
-        stressIndicators: [
-          ...currentBiology.stressIndicators,
-          `CV_CONFIDENCE:${(liveBiology.confidence * 100).toFixed(0)}%`
-        ]
-      };
+    let currentEnvironment = state.currentEnvironment;
+    let overrideStale = false;
+    
+    if (state.id === "FARM_01") {
+      const { observation } = adaptBiologicalObservation(liveBiology, state.baseline, !!liveBiology);
+      currentBiology = observation;
+      
+      if (liveEnv && envSourceType === "LIVE") {
+        currentEnvironment = {
+          ...currentEnvironment,
+          temperature: liveEnv.temperature?.value ?? currentEnvironment.temperature,
+          humidity: liveEnv.humidity?.value ?? currentEnvironment.humidity,
+          rainfall: liveEnv.rainfall?.value ?? currentEnvironment.rainfall
+        };
+      }
+      
+      const isUnavailable = envConnectionState?.status !== "CONNECTED";
+      if (envSourceType === "LIVE" && (isUnavailable || !liveEnv)) {
+        overrideStale = true;
+      }
     }
     
     const bti = calculateBTI({
       climate: state.currentClimate,
-      environment: state.currentEnvironment,
+      environment: currentEnvironment,
       biological: currentBiology,
       baseline: state.baseline,
       hazard: state.hazard,
       historyScores: history
     });
 
+    if (overrideStale) {
+      bti.score = null;
+      bti.severity = "INSUFFICIENT";
+      bti.explanation = ["Environmental telemetry is stale or unavailable. Cannot compute live risk."];
+    }
+
     return {
       ...state,
       currentBiology,
-      bti
+      currentEnvironment,
+      bti,
+      candidates
     };
   });
 };
+
+
+
+
+

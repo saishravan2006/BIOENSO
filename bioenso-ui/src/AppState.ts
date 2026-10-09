@@ -1,5 +1,8 @@
 export type ScenarioType = "NORMAL" | "HEAT_RISK" | "CRITICAL_HEAT" | "FLOOD_RISK" | "RECOVERY" | "OFFLINE";
 
+import { calculateBTI, adaptBiologicalObservation } from 'bioenso-bti';
+import type { FarmBaseline } from 'bioenso-bti';
+
 export interface AppState {
   scenario: ScenarioType;
   environment: {
@@ -21,14 +24,49 @@ export interface AppState {
     waterDemandNow: number;
   };
   riskState: {
-    score: number;
+    score: number | null;
     level: string;
     message: string;
     primaryAction: string;
   };
+  candidates?: any[];
+  // Environmental source and connection metadata � explicitly distinguished from measurement validity
+  // Optional because it is always set by getScenarioState() before returning, regardless of branch
+  envSource?: {
+    type: "SIMULATED" | "LIVE_EDGE_API" | "DISCONNECTED";
+    connectionStatus: "CONNECTED" | "DISCONNECTED" | "STALE" | "NEVER_CONNECTED" | null;
+    lastSuccessfulFetch: string | null;
+    lastError: string | null;
+    dataQuality: "VALID" | "SUSPECT" | "MISSING";
+  };
 }
 
-export function getScenarioState(scenario: ScenarioType, riskOverride?: number, liveBiology?: any): AppState {
+export function getScenarioState(
+  scenario: ScenarioType, 
+  riskOverride?: number, 
+  liveBiology?: any,
+  candidates?: any[],
+  liveEnv?: any,
+  climateFeatures?: any,
+  envSourceType?: "SIMULATED" | "LIVE",
+  envConnectionState?: import('bioenso-shared').EnvironmentalConnectionState | null
+): AppState {
+  const UI_BASELINE: FarmBaseline = {
+    expectedBehavior: {
+      shadeSeeking: 0.15,
+      waterDemand: 0.10,
+      movement: 0.50,
+      grazing: 0.75,
+      resting: 0.40,
+      drinking: 0.05,
+      ruminating: 0.10,
+      thermalResponse: 0.10
+    },
+    variability: {
+      shadeSeeking: 0.1, waterDemand: 0.1, movement: 0.1, grazing: 0.1,
+      resting: 0.1, drinking: 0.1, ruminating: 0.1, thermalResponse: 0.1
+    }
+  };
   // Base configuration
   const base = {
     scenario,
@@ -100,6 +138,7 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number, 
         },
         riskState: { score: 88, level: "ACT NOW", message: "Flood conditions detected on farm.", primaryAction: "Move livestock to Zone B" }
       };
+      break;
     case "RECOVERY":
       // If a riskOverride is provided (simulating the 86->32 drop), use it. Otherwise default to a middle value.
       const currentRisk = riskOverride ?? 44;
@@ -142,40 +181,146 @@ export function getScenarioState(scenario: ScenarioType, riskOverride?: number, 
       baseState = base;
   }
 
-  // --- HACKATHON LIVE OVERRIDE ---
-  // If we receive real-time data from the Python Vision API, inject it into the app state!
-  if (liveBiology && liveBiology.status === "ACTIVE") {
-      const active = liveBiology.active_animals;
-      baseState.animalState.total = active > 0 ? active : 128; // fallback to 128 if no cows on screen
-      
-      // Calculate diffs from baseline
-      baseState.animalState.shadeOccupancyDiff = liveBiology.shade_pct - 15; // Assuming 15% is normal
-      baseState.animalState.waterDemandDiff = liveBiology.water_pct - 10; // Assuming 10% is normal
-      baseState.animalState.movementDiff = Math.round((liveBiology.movement_index * 100) - 50); // Map index to diff
-      baseState.animalState.grazingDiff = liveBiology.grazing_pct - 75;
-      
-      // Dynamically calculate risk score based on live stress signals (Shade + Low Movement)
-      let liveRisk = 24; // Base normal risk
-      if (liveBiology.shade_pct > 60) liveRisk += 25;
-      if (liveBiology.movement_index < 0.2) liveRisk += 20; // Lethargy
-      if (liveBiology.water_pct > 40) liveRisk += 20;
-      
-      baseState.riskState.score = liveRisk > 100 ? 100 : liveRisk;
-      
-      if (baseState.riskState.score > 70) {
-          baseState.riskState.level = "CRITICAL RISK";
-          baseState.riskState.message = "LIVE: Herd is showing severe signs of heat stress!";
-          baseState.riskState.primaryAction = "Deploy Sprinklers Now";
-          baseState.animalState.critical = Math.floor(baseState.animalState.total * 0.4);
-      } else if (baseState.riskState.score > 40) {
-          baseState.riskState.level = "ELEVATED RISK";
-          baseState.riskState.message = "LIVE: Animals are clustering in shade.";
-          baseState.animalState.elevated = Math.floor(baseState.animalState.total * 0.3);
-      } else {
-          baseState.riskState.level = "SAFE TODAY";
-          baseState.riskState.message = "LIVE: Herd behavior is normal.";
-      }
+  
+  // Derive BTI-based risk from the shared engine's output
+
+  // If live environment is available, use it to override the base state
+  if (liveEnv) {
+    // Valid environmental observation received � use its measurements
+    baseState.environment.temperature = liveEnv.temperature?.value ?? baseState.environment.temperature;
+    baseState.environment.humidity = liveEnv.humidity?.value ?? baseState.environment.humidity;
+    baseState.environment.rainfall = liveEnv.rainfall?.value ?? baseState.environment.rainfall;
+    baseState.environment.tempDiff = climateFeatures?.temperatureTrend ?? baseState.environment.tempDiff;
+    // Stale data is still an observation, but surface its age
+    const isStale = envConnectionState?.status === "STALE";
+    (baseState as any).envSource = {
+      type: liveEnv.source === "SIMULATED" ? "SIMULATED" : "LIVE_EDGE_API",
+      connectionStatus: envConnectionState?.status ?? (envSourceType === "LIVE" ? "CONNECTED" : null),
+      lastSuccessfulFetch: envConnectionState?.lastSuccessfulFetch ?? liveEnv.receiptTime,
+      lastError: envConnectionState?.lastError ?? null,
+      dataQuality: isStale ? "SUSPECT" : liveEnv.overallQuality
+    };
+  } else {
+    // No observation received
+    if (envSourceType === "LIVE") {
+      // Live mode selected but connection failed � do NOT substitute simulated data or render as Safe
+      (baseState as any).envSource = {
+        type: "DISCONNECTED",
+        connectionStatus: envConnectionState?.status ?? "DISCONNECTED",
+        lastSuccessfulFetch: envConnectionState?.lastSuccessfulFetch ?? null,
+        lastError: envConnectionState?.lastError ?? "No observation received",
+        dataQuality: "MISSING"
+      };
+      baseState.riskState.level = "INSUFFICIENT EVIDENCE";
+      baseState.riskState.message = "Environmental telemetry unavailable. Cannot compute live risk.";
+      baseState.riskState.score = null;
+    } else {
+      // Simulated mode � surface clearly as simulated
+      (baseState as any).envSource = {
+        type: "SIMULATED",
+        connectionStatus: null,
+        lastSuccessfulFetch: null,
+        lastError: null,
+        dataQuality: "VALID" // Simulated data is internally consistent
+      };
+    }
   }
 
+  
+  // Create simulated biology from current animal state diffs if liveBiology is absent
+  let biologicalInput = null;
+  if (liveBiology && liveBiology.status === "ACTIVE") {
+      const { observation } = adaptBiologicalObservation(liveBiology, UI_BASELINE, true);
+      biologicalInput = observation;
+      
+      const active = liveBiology.activeAnimals.value;
+      baseState.animalState.total = (active !== null && active > 0) ? active : 128;
+      
+      // Keep UI visual state aligned with the new valid values
+      baseState.animalState.shadeOccupancyDiff = (liveBiology.shadeOccupancyPct.value !== null ? liveBiology.shadeOccupancyPct.value : 15) - 15;
+      baseState.animalState.waterDemandDiff = (liveBiology.waterZoneOccupancyPct.value !== null ? liveBiology.waterZoneOccupancyPct.value : 10) - 10;
+      baseState.animalState.movementDiff = liveBiology.movementIndex.value !== null ? Math.round((liveBiology.movementIndex.value * 100) - 50) : 0;
+      baseState.animalState.grazingDiff = (liveBiology.grazingPct.value !== null ? liveBiology.grazingPct.value : 75) - 75;
+  } else {
+      // Simulate input for the engine based on the scenario's predefined visual diffs
+      biologicalInput = {
+        animalsDetected: baseState.animalState.total,
+        behavior: {
+          shadeSeeking: 0.15 + (baseState.animalState.shadeOccupancyDiff / 100),
+          waterDemand: 0.10 + (baseState.animalState.waterDemandDiff / 100),
+          movement: 0.50 + (baseState.animalState.movementDiff / 100),
+          grazing: 0.75 + (baseState.animalState.grazingDiff / 100),
+          resting: undefined,
+          drinking: undefined,
+          ruminating: undefined,
+          thermalResponse: undefined
+        }
+      };
+  }
+
+  // Evaluate through authoritative engine
+  if (scenario !== "OFFLINE" && scenario !== "RECOVERY") { // Recovery handles its own manual interpolation for demo
+    const hazard = scenario === "FLOOD_RISK" ? "FLOOD" : "HEAT";
+    
+    const btiResult = calculateBTI({
+      climate: {
+        ensoState: "EL_NINO",
+        regionalSignal: "WARM",
+        regionalClimateRelevance: 0.5,
+        temperatureAnomaly: baseState.environment.tempDiff,
+        rainfallAnomaly: scenario === "FLOOD_RISK" ? 50 : 0
+      },
+      environment: {
+        temperature: baseState.environment.temperature,
+        humidity: baseState.environment.humidity,
+        durationMinutes: 120
+      },
+      biological: biologicalInput,
+      baseline: UI_BASELINE,
+      hazard: hazard
+    });
+
+    baseState.riskState.score = btiResult.score;
+
+
+    // Map presentation states
+    if (btiResult.severity === "INSUFFICIENT") {
+      baseState.riskState.level = "INSUFFICIENT EVIDENCE";
+      baseState.riskState.message = liveBiology ? "LIVE: " + btiResult.explanation[0] : btiResult.explanation[0];
+      baseState.riskState.primaryAction = "Check Sensors";
+    } else if (btiResult.severity === "CRITICAL") {
+
+      baseState.riskState.level = "CRITICAL RISK";
+      baseState.riskState.message = liveBiology ? "LIVE: " + btiResult.explanation[0] : btiResult.explanation[0];
+      baseState.riskState.primaryAction = "Deploy Countermeasures Now";
+    } else if (btiResult.severity === "ELEVATED") {
+      baseState.riskState.level = "ELEVATED RISK";
+      baseState.riskState.message = liveBiology ? "LIVE: " + btiResult.explanation[0] : btiResult.explanation[0];
+      baseState.riskState.primaryAction = "Monitor closely";
+    } else if (btiResult.severity === "WATCH") {
+      baseState.riskState.level = "WATCH";
+      baseState.riskState.message = liveBiology ? "LIVE: " + btiResult.explanation[0] : btiResult.explanation[0];
+      baseState.riskState.primaryAction = "Ensure resources";
+    } else {
+      baseState.riskState.level = "SAFE TODAY";
+      baseState.riskState.message = liveBiology ? "LIVE: Herd behavior is normal." : "Conditions are within normal bounds.";
+    }
+
+    // SAFETY DEFECT FIX: Override BTI result if environmental data is stale or disconnected
+    const isUnavailable = envConnectionState?.status !== "CONNECTED";
+    if (isUnavailable && envSourceType === "LIVE") {
+      baseState.riskState.score = null;
+      baseState.riskState.level = "INSUFFICIENT EVIDENCE";
+      baseState.riskState.message = "Environmental telemetry is stale. Cannot compute live risk.";
+      baseState.riskState.primaryAction = "Check Sensors";
+    }
+  }
+
+  if (candidates) baseState.candidates = candidates;
   return baseState;
 }
+
+
+
+
+

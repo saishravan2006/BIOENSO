@@ -14,7 +14,7 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
     // Elevate climate relevance for all farms slightly
     farms.forEach(f => {
       f.currentClimate.temperatureAnomaly = 1.0;
-      f.currentEnvironment.temperature += 1.0;
+      if (f.currentEnvironment.temperature !== undefined) f.currentEnvironment.temperature += 1.0;
     });
 
     // Make Farm A (FARM_01) highly exposed and highly responsive (CRITICAL)
@@ -27,12 +27,12 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
       fA.currentEnvironment.durationMinutes = 19;
       
       // Biological response deviation (e.g., shade seeking way up, movement down)
-      fA.currentBiology.behavior.shadeSeeking = fA.baseline.expectedBehavior.shadeSeeking + 31;
-      fA.currentBiology.behavior.waterDemand = fA.baseline.expectedBehavior.waterDemand + 22;
-      fA.currentBiology.behavior.movement = Math.max(0, fA.baseline.expectedBehavior.movement - 19);
-      fA.currentBiology.behavior.grazing = Math.max(0, fA.baseline.expectedBehavior.grazing - 16);
-      fA.currentBiology.behavior.ruminating = Math.max(0, fA.baseline.expectedBehavior.ruminating - 12);
-      fA.currentBiology.behavior.thermalResponse = fA.baseline.expectedBehavior.thermalResponse + 16;
+      fA.currentBiology.behavior.shadeSeeking = (fA.baseline.expectedBehavior.shadeSeeking ?? 0) + 31;
+      fA.currentBiology.behavior.waterDemand = (fA.baseline.expectedBehavior.waterDemand ?? 0) + 22;
+      fA.currentBiology.behavior.movement = Math.max(0, (fA.baseline.expectedBehavior.movement ?? 0) - 19);
+      fA.currentBiology.behavior.grazing = Math.max(0, (fA.baseline.expectedBehavior.grazing ?? 0) - 16);
+      fA.currentBiology.behavior.ruminating = Math.max(0, (fA.baseline.expectedBehavior.ruminating ?? 0) - 12);
+      fA.currentBiology.behavior.thermalResponse = (fA.baseline.expectedBehavior.thermalResponse ?? 0) + 16;
     }
     
     // Make Farm B (FARM_02) slightly less exposed (ELEVATED)
@@ -43,9 +43,9 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
       fB.currentEnvironment.thi = 78.0;
       fB.currentEnvironment.durationMinutes = 24;
       
-      fB.currentBiology.behavior.shadeSeeking = fB.baseline.expectedBehavior.shadeSeeking + 15;
-      fB.currentBiology.behavior.waterDemand = fB.baseline.expectedBehavior.waterDemand + 10;
-      fB.currentBiology.behavior.movement = Math.max(0, fB.baseline.expectedBehavior.movement - 10);
+      fB.currentBiology.behavior.shadeSeeking = (fB.baseline.expectedBehavior.shadeSeeking ?? 0) + 15;
+      fB.currentBiology.behavior.waterDemand = (fB.baseline.expectedBehavior.waterDemand ?? 0) + 10;
+      fB.currentBiology.behavior.movement = Math.max(0, (fB.baseline.expectedBehavior.movement ?? 0) - 10);
     }
   }
 
@@ -58,9 +58,9 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
       fF.currentEnvironment.soilWetness = 100;
       fF.currentEnvironment.durationMinutes = 65;
       
-      fF.currentBiology.behavior.movement = fF.baseline.expectedBehavior.movement + 45; // Evacuating
-      fF.currentBiology.behavior.grazing = Math.max(0, fF.baseline.expectedBehavior.grazing - 25);
-      fF.currentBiology.behavior.ruminating = Math.max(0, fF.baseline.expectedBehavior.ruminating - 15);
+      fF.currentBiology.behavior.movement = (fF.baseline.expectedBehavior.movement ?? 0) + 45; // Evacuating
+      fF.currentBiology.behavior.grazing = Math.max(0, (fF.baseline.expectedBehavior.grazing ?? 0) - 25);
+      fF.currentBiology.behavior.ruminating = Math.max(0, (fF.baseline.expectedBehavior.ruminating ?? 0) - 15);
     }
   }
 
@@ -74,9 +74,9 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
       fA.currentEnvironment.durationMinutes = 45; // Persisted longer
       
       // But biology is recovering due to intervention
-      fA.currentBiology.behavior.shadeSeeking = fA.baseline.expectedBehavior.shadeSeeking + 12;
-      fA.currentBiology.behavior.waterDemand = fA.baseline.expectedBehavior.waterDemand + 8;
-      fA.currentBiology.behavior.movement = Math.max(0, fA.baseline.expectedBehavior.movement - 5);
+      fA.currentBiology.behavior.shadeSeeking = (fA.baseline.expectedBehavior.shadeSeeking ?? 0) + 12;
+      fA.currentBiology.behavior.waterDemand = (fA.baseline.expectedBehavior.waterDemand ?? 0) + 8;
+      fA.currentBiology.behavior.movement = Math.max(0, (fA.baseline.expectedBehavior.movement ?? 0) - 5);
       
       fA.intervention.active = true;
       fA.intervention.type = "COOLING";
@@ -85,3 +85,4 @@ export function simulateScenario(baseFarms: FarmState[], scenario: NetworkScenar
 
   return farms;
 }
+

@@ -1,8 +1,8 @@
-import { Info, MapPin, Cpu, HardHat, Wifi, ShieldCheck, WifiOff, Thermometer, Droplets, Camera, Wind, Server } from 'lucide-react';
+import { HardHat, Wifi, ShieldCheck, WifiOff, Thermometer, Camera, Wind, Server } from 'lucide-react';
 import clsx from 'clsx';
 import type { AppState, ScenarioType } from '../AppState';
 
-export default function FarmScreen({ appState, setScenario, setActiveAction }: { appState: AppState, setScenario: (s: ScenarioType) => void, setActiveAction: any }) {
+export default function FarmScreen({ appState, setScenario, setActiveAction, envSourceType: _envSourceType, setEnvSourceType: _setEnvSourceType }: { appState: AppState, setScenario: (s: ScenarioType) => void, setActiveAction: any, envSourceType?: "SIMULATED" | "LIVE", setEnvSourceType?: (v: "SIMULATED" | "LIVE") => void }) {
   const { scenario } = appState;
   const isOffline = scenario === "OFFLINE";
   
@@ -158,3 +158,4 @@ export default function FarmScreen({ appState, setScenario, setActiveAction }: {
     </div>
   );
 }
+

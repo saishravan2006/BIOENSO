@@ -1,10 +1,10 @@
-export type Severity = "NORMAL" | "WATCH" | "ELEVATED" | "CRITICAL";
-export type Trend = "RISING" | "STABLE" | "FALLING";
+export type Severity = "NORMAL" | "WATCH" | "ELEVATED" | "CRITICAL" | "INSUFFICIENT";
+export type Trend = "RISING" | "STABLE" | "FALLING" | "UNKNOWN";
 export type DataQuality = "HIGH" | "MEDIUM" | "LOW" | "INSUFFICIENT";
 export type HazardType = "HEAT" | "FLOOD" | "NONE";
 
 export interface BTIResult {
-  score: number;
+  score: number | null;
   components: {
     climateContext: number;
     farmExposure: number;
@@ -26,11 +26,12 @@ export interface ClimateObservation {
   regionalClimateRelevance: number; // 0.0 - 1.0
   temperatureAnomaly: number;
   rainfallAnomaly: number;
+  localClusterId?: number;
 }
 
 export interface EnvironmentObservation {
-  temperature: number;
-  humidity: number;
+  temperature?: number;
+  humidity?: number;
   thi?: number;
   radiantHeat?: number;
   wind?: number;
@@ -41,14 +42,14 @@ export interface EnvironmentObservation {
 }
 
 export interface BiologicalBehavior {
-  resting: number;
-  movement: number;
-  drinking: number;
-  grazing: number;
-  ruminating: number;
-  shadeSeeking: number;
-  waterDemand: number;
-  thermalResponse: number;
+  resting?: number;
+  movement?: number;
+  drinking?: number;
+  grazing?: number;
+  ruminating?: number;
+  shadeSeeking?: number;
+  waterDemand?: number;
+  thermalResponse?: number;
 }
 
 export interface BiologicalObservation {
@@ -60,3 +61,7 @@ export interface FarmBaseline {
   expectedBehavior: BiologicalBehavior;
   variability: BiologicalBehavior; // e.g. MAD for computing sigma
 }
+
+
+
+

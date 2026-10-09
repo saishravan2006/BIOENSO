@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 
+# PROVENANCE WARNING: This MotionDetector measures general frame/scene motion using frame differencing.
+# It does NOT represent validated animal-specific tracked movement.
+# It includes camera shake, wind, background motion, etc., and acts strictly as a scene-motion proxy.
 class MotionDetector:
     def __init__(self, threshold=25, blur_size=(21, 21), min_area=500):
         self.threshold = threshold

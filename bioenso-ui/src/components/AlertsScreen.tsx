@@ -3,9 +3,22 @@ import clsx from 'clsx';
 import type { AppState } from '../AppState';
 
 export default function AlertsScreen({ appState }: { appState: AppState }) {
-  const { scenario, riskState } = appState;
+  const { scenario, riskState, candidates } = appState;
+  
+  const candidateAlerts = (candidates || []).filter((c: any) => c.status === "ACTIVE").map((c: any) => ({
+    id: c.eventId,
+    time: new Date(c.lastObservedTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}),
+    date: "Today",
+    severity: "WATCH",
+    title: c.type === "ACUTE_BEHAVIOURAL_ANOMALY_CANDIDATE" ? "BEHAVIOURAL ANOMALY CANDIDATE" : "INSUFFICIENT EVIDENCE",
+    description: c.explanation,
+    why: c.evidence.eventTypes,
+    action: "Investigate - Provisional Signal",
+    riskScore: null
+  }));
   
   const alerts = [
+    ...candidateAlerts,
     ...(scenario === "CRITICAL_HEAT" ? [
       { id: "1", time: "10:42 AM", date: "Today", severity: "CRITICAL", title: "ACT NOW", description: "Livestock heat stress is increasing.", why: ["Temperature high", "Water demand increasing", "Animals seeking shade"], action: "Start cooling.", riskScore: 86 }
     ] : []),
@@ -68,7 +81,7 @@ export default function AlertsScreen({ appState }: { appState: AppState }) {
                   <div className="mt-6 pt-6 border-t border-white/10">
                     <h4 className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-3">Why?</h4>
                     <ul className="space-y-2 mb-6">
-                      {alert.why.map((reason, i) => (
+                      {alert.why.map((reason: any, i: any) => (
                         <li key={i} className="flex items-center space-x-2 text-white/80 font-medium text-sm">
                           <div className="w-1.5 h-1.5 rounded-full bg-white/30" />
                           <span>{reason}</span>

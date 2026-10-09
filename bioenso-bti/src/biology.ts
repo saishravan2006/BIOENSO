@@ -21,7 +21,11 @@ export function calculateBiologicalResiduals(
   
   for (const key of keys) {
     const obsVal = observed.behavior[key];
+    if (obsVal === undefined || obsVal === null) continue; // Guard against missing/invalid
+
     const expVal = expected[key];
+    if (expVal === undefined || expVal === null) continue;
+
     const varVal = variability[key] || 1; // Prevent div by 0
     
     residuals[key] = (obsVal - expVal) / varVal;
@@ -45,6 +49,7 @@ export function calculateBiologicalDeviation(
   for (const feature of features) {
     const key = feature.key as keyof BiologicalBehavior;
     const residual = residuals[key];
+    if (residual === undefined || residual === null) continue; // Guard against missing residuals
     const weight = feature.weight;
     
     // Check if deviation is in the adverse direction
@@ -66,3 +71,4 @@ export function calculateBiologicalDeviation(
   
   return { score, overallSigma };
 }
+

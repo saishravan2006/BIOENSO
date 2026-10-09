@@ -9,8 +9,8 @@ export default function OverviewTab({ farm, setActiveTab }: { farm: Farm, setAct
   const isCritical = bti.severity === "CRITICAL";
   const isRecovery = bti.severity === "WATCH" && bti.trend === "FALLING" && intervention.active;
   
-  const movementDelta = biology.behavior.movement - baseline.expectedBehavior.movement;
-  const shadeSeekingDelta = biology.behavior.shadeSeeking - baseline.expectedBehavior.shadeSeeking;
+  const movementDelta = (biology.behavior.movement ?? 0) - (baseline.expectedBehavior.movement ?? 0);
+  const shadeSeekingDelta = (biology.behavior.shadeSeeking ?? 0) - (baseline.expectedBehavior.shadeSeeking ?? 0);
   
   const exposureLevel = farm.hazard === "FLOOD" ? (environment.waterLevel && environment.waterLevel > 0.5 ? "HIGH" : "MODERATE") : (environment.thi && environment.thi > 78 ? "HIGH" : "MODERATE");
   
@@ -110,3 +110,4 @@ export default function OverviewTab({ farm, setActiveTab }: { farm: Farm, setAct
     </div>
   );
 }
+

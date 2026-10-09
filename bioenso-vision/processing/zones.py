@@ -3,6 +3,8 @@ import json
 import numpy as np
 import os
 
+# PROVENANCE WARNING: Zones are defined as static normalized polygons [0.0, 1.0].
+# Camera repositioning, PTZ movement, or accidental bumps invalidate all zone alignments.
 class ZoneManager:
     def __init__(self, config_file="zones.json"):
         self.config_file = config_file
@@ -13,6 +15,7 @@ class ZoneManager:
             "GRAZING": (0, 255, 0),     # Green
             "GENERAL": (200, 200, 200)  # Gray
         }
+        self.alignment_trusted = True
         self.load_zones()
 
     def load_zones(self):
@@ -20,6 +23,7 @@ class ZoneManager:
             with open(self.config_file, 'r') as f:
                 data = json.load(f)
                 self.zones = data.get("zones", {})
+                self.alignment_trusted = data.get("alignment_trusted", True)
         else:
             print(f"[WARN] {self.config_file} not found. Using defaults.")
             self.zones = {}

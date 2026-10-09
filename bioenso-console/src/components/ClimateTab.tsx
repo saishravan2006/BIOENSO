@@ -8,8 +8,8 @@ export default function ClimateTab({ farm }: { farm: Farm }) {
   // Generating a deterministic mock temperature curve for the farm
   const mockTemperatureData = Array.from({ length: 24 }).map((_, i) => ({
     time: `${i}:00`,
-    temp: (environment.temperature - 5) + Math.sin((i / 24) * Math.PI) * 10 + Math.random() * 1.5,
-    baseline: (environment.temperature - 5 - climate.temperatureAnomaly) + Math.sin((i / 24) * Math.PI) * 10
+    temp: ((environment.temperature ?? 0) - 5) + Math.sin((i / 24) * Math.PI) * 10 + Math.random() * 1.5,
+    baseline: ((environment.temperature ?? 0) - 5 - climate.temperatureAnomaly) + Math.sin((i / 24) * Math.PI) * 10
   }));
   
   const isFlood = farm.hazard === "FLOOD";
@@ -98,7 +98,7 @@ export default function ClimateTab({ farm }: { farm: Farm }) {
           <div className="flex space-x-6">
             <div className="flex items-center space-x-2">
               <Thermometer size={16} className="text-white/40" />
-              <span className="text-sm font-bold text-white">{environment.temperature}°C <span className="text-[9px] text-white/30 ml-2">OBSERVED · SHT31</span></span>
+              <span className="text-sm font-bold text-white">{(environment.temperature ?? 0)}°C <span className="text-[9px] text-white/30 ml-2">OBSERVED · SHT31</span></span>
             </div>
             <div className="flex items-center space-x-2">
               <Droplets size={16} className="text-white/40" />
@@ -140,3 +140,5 @@ export default function ClimateTab({ farm }: { farm: Farm }) {
     </div>
   );
 }
+
+

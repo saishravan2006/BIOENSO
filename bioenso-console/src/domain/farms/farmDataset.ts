@@ -1,4 +1,4 @@
-import type { FarmBaseline, BiologicalObservation, EnvironmentObservation, ClimateObservation, HazardType } from '../bti/types';
+import type { FarmBaseline, BiologicalObservation, EnvironmentObservation, ClimateObservation, HazardType } from 'bioenso-bti';
 
 export interface FarmState {
   id: string;
@@ -70,3 +70,5 @@ export const placeholderFarms: FarmState[] = Array.from({ length: 39 }).map((_, 
 }));
 
 export const allFarms: FarmState[] = [...baseFarms, ...placeholderFarms];
+
+

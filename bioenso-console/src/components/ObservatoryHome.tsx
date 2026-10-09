@@ -9,10 +9,10 @@ export default function ObservatoryHome({ farms, onSelectFarm }: { farms: Farm[]
   const watchFarms = farms.filter(f => f.bti.severity === "WATCH");
   const normalFarms = farms.filter(f => f.bti.severity === "NORMAL");
   
-  const medianBti = farms.length > 0 ? [...farms].sort((a,b)=>a.bti.score - b.bti.score)[Math.floor(farms.length/2)].bti.score : 0;
-  const maxBti = farms.length > 0 ? Math.max(...farms.map(f => f.bti.score)) : 0;
+  const medianBti = farms.length > 0 ? [...farms].sort((a,b)=>(a.bti.score ?? 0) - (b.bti.score ?? 0))[Math.floor(farms.length/2)].bti.score : 0;
+  const maxBti = farms.length > 0 ? Math.max(...farms.map(f => f.bti.score ?? 0)) : 0;
   
-  const sortedByBti = [...farms].sort((a,b) => b.bti.score - a.bti.score);
+  const sortedByBti = [...farms].sort((a,b) => (b.bti.score ?? 0) - (a.bti.score ?? 0));
 
   // Mock trend data
   const mockTrendData = Array.from({length: 24}).map((_, i) => ({
@@ -82,7 +82,7 @@ export default function ObservatoryHome({ farms, onSelectFarm }: { farms: Farm[]
                   <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md border border-white/10 px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 transition-opacity">
                     <div className="text-xs font-bold text-white">{farm.name}</div>
                     <div className="text-[10px] text-white/50">{farm.location.district}</div>
-                    <div className="mt-1 text-xs font-black"><span className={clsx("text-white")}>BTI {farm.bti.score}</span></div>
+                    <div className="mt-1 text-xs font-black"><span className={clsx("text-white")}>BTI {farm.bti.score ?? "--"}</span></div>
                   </div>
                 </button>
               )
@@ -120,7 +120,7 @@ export default function ObservatoryHome({ farms, onSelectFarm }: { farms: Farm[]
                   <div className="flex justify-between items-start mb-1">
                     <div className="text-xs font-bold text-white">{farm.name}</div>
                     <div className={clsx("text-xs font-black", farm.bti.severity === "CRITICAL" ? "text-rose-400" : farm.bti.severity === "ELEVATED" ? "text-orange-400" : "text-white/50")}>
-                      BTI {farm.bti.score}
+                      BTI {farm.bti.score ?? "--"}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-white/40">
@@ -224,7 +224,7 @@ export default function ObservatoryHome({ farms, onSelectFarm }: { farms: Farm[]
                       <td className="py-3 text-xs font-bold text-white/70">+{farm.bti.residual}σ</td>
                       <td className="py-3">
                         <div className="flex items-center space-x-2">
-                          <span className={clsx("text-sm font-black", farm.bti.severity === "CRITICAL" ? "text-rose-400" : farm.bti.severity === "ELEVATED" ? "text-orange-400" : "text-white")}>{farm.bti.score}</span>
+                          <span className={clsx("text-sm font-black", farm.bti.severity === "CRITICAL" ? "text-rose-400" : farm.bti.severity === "ELEVATED" ? "text-orange-400" : "text-white")}>{farm.bti.score ?? "--"}</span>
                           {farm.bti.trend === "RISING" ? <ArrowUpRight size={10} className="text-rose-400" /> : farm.bti.trend === "FALLING" ? <ArrowDownRight size={10} className="text-emerald-400" /> : null}
                         </div>
                       </td>

@@ -7,6 +7,7 @@ export function calculateExposureScore(env: EnvironmentObservation, hazard: Haza
   if (hazard === "HEAT") {
     // Prototype Heat Exposure formula
     // Temp: baseline 30, max 45
+    if (env.temperature === undefined) return 0; // Degraded
     const tempScore = Math.max(0, (env.temperature - 30) / 15);
     
     // THI: baseline 70, max 90
@@ -30,3 +31,4 @@ export function calculateExposureScore(env: EnvironmentObservation, hazard: Haza
   
   return 0.0;
 }
+

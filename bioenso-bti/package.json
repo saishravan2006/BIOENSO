@@ -1,0 +1,19 @@
+{
+  "name": "bioenso-bti",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/engine.test.js"
+  },
+  "dependencies": {
+    "bioenso-shared": "file:../bioenso-shared"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
+
+

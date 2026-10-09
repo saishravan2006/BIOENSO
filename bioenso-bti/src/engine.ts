@@ -16,6 +16,18 @@ export function calculateBTI(params: {
 }): BTIResult {
   const { climate, environment, biological, baseline, hazard, historyScores = [] } = params;
 
+  let insufficientEvidence = false;
+  let missingReasons: string[] = [];
+
+  if (hazard === "HEAT" && environment.temperature === undefined) {
+    insufficientEvidence = true;
+    missingReasons.push("Temperature reading missing");
+  }
+  if (hazard === "FLOOD" && environment.rainfall === undefined) {
+    insufficientEvidence = true;
+    missingReasons.push("Rainfall reading missing");
+  }
+
   // 1. Calculate the 4 components
   const C = calculateClimateContextScore(climate, hazard);
   const E = calculateExposureScore(environment, hazard);
@@ -51,7 +63,7 @@ export function calculateBTI(params: {
   }
 
   // 5. Quality
-  const { confidence, dataQuality } = calculateConfidence(climate, environment, biological);
+  let { confidence, dataQuality } = calculateConfidence(climate, environment, biological);
 
   // 6. Explanation Generator
   const explanation: string[] = [];
@@ -61,8 +73,16 @@ export function calculateBTI(params: {
   if (P > 0.5) explanation.push(`Deviation persisted for ${environment.durationMinutes} minutes`);
   if (explanation.length === 0) explanation.push("Conditions are within normal expected bounds");
 
+  if (insufficientEvidence) {
+    dataQuality = "INSUFFICIENT" as any;
+    severity = "INSUFFICIENT" as any;
+    trend = "UNKNOWN" as any;
+    explanation.length = 0; // Clear the normal explanations
+    explanation.push(...missingReasons.map(r => 'INSUFFICIENT EVIDENCE: ' + r));
+  }
+
   return {
-    score,
+    score: insufficientEvidence ? null : score,
     components: {
       climateContext: Number(C.toFixed(2)),
       farmExposure: Number(E.toFixed(2)),
@@ -72,8 +92,8 @@ export function calculateBTI(params: {
     confidence,
     residual: Number(overallSigma.toFixed(2)),
     persistenceMinutes: environment.durationMinutes,
-    severity,
-    trend,
+    severity: severity as any,
+    trend: trend as any,
     dataQuality,
     explanation
   };
